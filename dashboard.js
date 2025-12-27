@@ -380,8 +380,8 @@ function startDashboard() {
         </div>
       </div>
 
-      <div class="card" id="user-odds">
-        <h2 class="section-title">Per-User Odds Overrides <span class="badge">Personalized</span></h2>
+      <div class="card">
+        <h2>Per-User Odds Overrides</h2>
         <p class="muted">Set custom chances for a specific user. Values are percentages.</p>
 
         <form method="POST" action="/user-odds">
