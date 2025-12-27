@@ -248,6 +248,66 @@ function drawCardBiased(deck, playerWinChance = 0.45, who = "player") {
   return deck.pop();
 }
 
+// ---- DICE ----
+function rollDiceBiased(guess, playerWinChance = 0.18) {
+  const p = Math.max(0, Math.min(1, playerWinChance));
+  let roll = Math.floor(Math.random() * 6) + 1;
+  let win = roll === guess;
+
+  for (let i = 0; i < 5; i++) {
+    const wantWin = Math.random() < p;
+    if (win === wantWin) break;
+    roll = Math.floor(Math.random() * 6) + 1;
+    win = roll === guess;
+  }
+
+  return { roll, win };
+}
+
+// ---- HIGH-LOW ----
+function randomRank(min, max) {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+function hiLoRound(guess, playerWinChance = 0.5) {
+  const p = Math.max(0, Math.min(1, playerWinChance));
+  const base = randomRank(2, 14);
+
+  const higherPool = [];
+  const lowerPool = [];
+  for (let r = 2; r <= 14; r++) {
+    if (r > base) higherPool.push(r);
+    if (r < base) lowerPool.push(r);
+  }
+
+  let targetWin = Math.random() < p;
+  let next = base;
+
+  const tieChance = 0.08;
+  if (Math.random() < tieChance) {
+    next = base;
+  } else if (guess === "higher") {
+    if (higherPool.length === 0) targetWin = false;
+    if (targetWin && higherPool.length) {
+      next = higherPool[Math.floor(Math.random() * higherPool.length)];
+    } else if (lowerPool.length) {
+      next = lowerPool[Math.floor(Math.random() * lowerPool.length)];
+    }
+  } else {
+    if (lowerPool.length === 0) targetWin = false;
+    if (targetWin && lowerPool.length) {
+      next = lowerPool[Math.floor(Math.random() * lowerPool.length)];
+    } else if (higherPool.length) {
+      next = higherPool[Math.floor(Math.random() * higherPool.length)];
+    }
+  }
+
+  const win =
+    next === base ? false : (guess === "higher" ? next > base : next < base);
+
+  return { base, next, win, push: next === base };
+}
+
 module.exports = {
   clampBet,
   coinflip,
@@ -257,4 +317,6 @@ module.exports = {
   handValue,
   dealBlackjackHandsBiased,
   drawCardBiased,
+  rollDiceBiased,
+  hiLoRound,
 };

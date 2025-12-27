@@ -12,6 +12,13 @@ CREATE TABLE IF NOT EXISTS config (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS user_config (
+  user_id TEXT NOT NULL,
+  key TEXT NOT NULL,
+  value TEXT NOT NULL,
+  PRIMARY KEY (user_id, key)
+);
 `);
 
 function getUser(userId) {
@@ -61,4 +68,45 @@ function getConfig(key, defaultObj) {
   }
 }
 
-module.exports = { db, getUser, addBalance, setBalance, setLastDaily, getConfig, setConfig };
+function getUserConfig(userId, key) {
+  const row = db.prepare("SELECT value FROM user_config WHERE user_id = ? AND key = ?").get(userId, key);
+  if (!row) return null;
+  try {
+    return JSON.parse(row.value);
+  } catch {
+    return null;
+  }
+}
+
+function setUserConfig(userId, key, valueObj) {
+  const value = JSON.stringify(valueObj);
+  db.prepare(`
+    INSERT INTO user_config (user_id, key, value) VALUES (?, ?, ?)
+    ON CONFLICT(user_id, key) DO UPDATE SET value=excluded.value
+  `).run(userId, key, value);
+}
+
+function clearUserConfig(userId, key) {
+  db.prepare("DELETE FROM user_config WHERE user_id = ? AND key = ?").run(userId, key);
+}
+
+function getEffectiveConfig(userId, key, defaultObj) {
+  const globalCfg = getConfig(key, defaultObj);
+  const userCfg = getUserConfig(userId, key);
+  if (!userCfg) return globalCfg;
+  return { ...globalCfg, ...userCfg };
+}
+
+module.exports = {
+  db,
+  getUser,
+  addBalance,
+  setBalance,
+  setLastDaily,
+  getConfig,
+  setConfig,
+  getUserConfig,
+  setUserConfig,
+  clearUserConfig,
+  getEffectiveConfig,
+};
