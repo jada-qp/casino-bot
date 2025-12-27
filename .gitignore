@@ -1,0 +1,21 @@
+# secrets
+.env
+.env.*
+*.env
+
+# database / local state
+casino.sqlite
+*.sqlite
+*.sqlite-journal
+
+# node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-lock.yaml
+.DS_Store
+
+# build / misc
+dist/
+coverage/
