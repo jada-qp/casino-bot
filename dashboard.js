@@ -3,7 +3,7 @@ const express = require("express");
 const session = require("express-session");
 const fetch = require("node-fetch");
 
-const { db, setBalance, getConfig, setConfig } = require("./db");
+const { db, setBalance, getConfig, setConfig, setUserConfig, clearUserConfig } = require("./db");
 
 const PORT = parseInt(process.env.DASHBOARD_PORT || "3000", 10);
 const CLIENT_ID = process.env.CLIENT_ID;
@@ -90,6 +90,11 @@ function pctFromConfig(v, fallbackPct) {
   return Math.round(clamped * 100);
 }
 
+function pctFromField(cfg, field, fallbackPct) {
+  const raw = cfg && typeof cfg === "object" ? cfg[field] : undefined;
+  return pctFromConfig(raw, fallbackPct);
+}
+
 function startDashboard() {
   const app = express();
   app.use(express.urlencoded({ extended: true }));
@@ -139,16 +144,21 @@ function startDashboard() {
 
   app.get("/dashboard", mustBeAuthed, (req, res) => {
     const users = db.prepare("SELECT user_id, balance, last_daily FROM users ORDER BY balance DESC LIMIT 200").all();
+    const userOverridesRaw = db.prepare("SELECT user_id, key, value FROM user_config ORDER BY user_id").all();
 
     const coin = getConfig("coinflip", { headsProb: 0.5 });
     const slots = getConfig("slots", { winChance: 0.28 });
     const roul = getConfig("roulette", { playerWinChance: 0.47 });
     const bj = getConfig("blackjack", { playerWinChance: 0.45 });
+    const dice = getConfig("dice", { playerWinChance: 0.18 });
+    const highlow = getConfig("highlow", { playerWinChance: 0.5 });
 
     const headsPct = pctFromConfig(coin.headsProb, 50);
     const slotsPct = pctFromConfig(slots.winChance, 28);
     const roulPct = pctFromConfig(roul.playerWinChance, 47);
     const bjPct = pctFromConfig(bj.playerWinChance, 45);
+    const dicePct = pctFromConfig(dice.playerWinChance, 18);
+    const highlowPct = pctFromConfig(highlow.playerWinChance, 50);
 
     const rows = users.map(u => `
       <tr>
@@ -163,6 +173,43 @@ function startDashboard() {
       </tr>
     `).join("");
 
+    const overridesByUser = userOverridesRaw.reduce((acc, row) => {
+      if (!acc[row.user_id]) acc[row.user_id] = {};
+      try {
+        acc[row.user_id][row.key] = JSON.parse(row.value);
+      } catch {
+        acc[row.user_id][row.key] = {};
+      }
+      return acc;
+    }, {});
+
+    const overrideRows = Object.entries(overridesByUser).map(([userId, cfgs]) => {
+      const coinPct = pctFromField(cfgs.coinflip, "headsProb", headsPct);
+      const slotsPctUser = pctFromField(cfgs.slots, "winChance", slotsPct);
+      const roulPctUser = pctFromField(cfgs.roulette, "playerWinChance", roulPct);
+      const bjPctUser = pctFromField(cfgs.blackjack, "playerWinChance", bjPct);
+      const dicePctUser = pctFromField(cfgs.dice, "playerWinChance", dicePct);
+      const highlowPctUser = pctFromField(cfgs.highlow, "playerWinChance", highlowPct);
+
+      return `
+        <tr>
+          <td><span class="pill">${userId}</span></td>
+          <td>${coinPct}%</td>
+          <td>${slotsPctUser}%</td>
+          <td>${roulPctUser}%</td>
+          <td>${bjPctUser}%</td>
+          <td>${dicePctUser}%</td>
+          <td>${highlowPctUser}%</td>
+          <td>
+            <form method="POST" action="/user-odds/clear">
+              <input type="hidden" name="user_id" value="${userId}" />
+              <button class="btn" type="submit">Clear</button>
+            </form>
+          </td>
+        </tr>
+      `;
+    }).join("");
+
     const script = `
       function bindSlider(sliderId, labelId) {
         const s = document.getElementById(sliderId);
@@ -176,6 +223,8 @@ function startDashboard() {
       bindSlider("slotsWinPct", "slotsWinLabel");
       bindSlider("rouletteWinPct", "rouletteWinLabel");
       bindSlider("blackjackWinPct", "blackjackWinLabel");
+      bindSlider("diceWinPct", "diceWinLabel");
+      bindSlider("highlowWinPct", "highlowWinLabel");
     `;
 
     res.send(htmlPage("Dashboard", `
@@ -227,6 +276,26 @@ function startDashboard() {
             </form>
           </div>
         </div>
+
+        <div class="row" style="margin-top:16px;">
+          <div>
+            <h3>Dice</h3>
+            <form method="POST" action="/config/dice">
+              <label>Player win bias: <b id="diceWinLabel">${dicePct}%</b></label>
+              <input id="diceWinPct" type="range" name="winPct" min="0" max="100" value="${dicePct}"/>
+              <button class="btn" type="submit" style="margin-top:10px;">Update</button>
+            </form>
+          </div>
+
+          <div>
+            <h3>High-Low</h3>
+            <form method="POST" action="/config/highlow">
+              <label>Player win bias: <b id="highlowWinLabel">${highlowPct}%</b></label>
+              <input id="highlowWinPct" type="range" name="winPct" min="0" max="100" value="${highlowPct}"/>
+              <button class="btn" type="submit" style="margin-top:10px;">Update</button>
+            </form>
+          </div>
+        </div>
       </div>
 
       <div class="card">
@@ -249,6 +318,68 @@ function startDashboard() {
             <p>If you expose this publicly: add HTTPS, stronger auth, and rate limits.</p>
           </div>
         </div>
+      </div>
+
+      <div class="card">
+        <h2>Per-User Odds Overrides</h2>
+        <p class="muted">Set custom chances for a specific user. Values are percentages.</p>
+
+        <form method="POST" action="/user-odds">
+          <label>User ID</label>
+          <input type="text" name="user_id" placeholder="123..." required />
+
+          <div class="row" style="margin-top:12px;">
+            <div>
+              <label>Coinflip (Heads %)</label>
+              <input type="number" name="coinflipHeadsPct" min="0" max="100" value="${headsPct}" required />
+            </div>
+            <div>
+              <label>Slots (Win %)</label>
+              <input type="number" name="slotsWinPct" min="0" max="100" value="${slotsPct}" required />
+            </div>
+          </div>
+
+          <div class="row" style="margin-top:12px;">
+            <div>
+              <label>Roulette (Win %)</label>
+              <input type="number" name="rouletteWinPct" min="0" max="100" value="${roulPct}" required />
+            </div>
+            <div>
+              <label>Blackjack (Win %)</label>
+              <input type="number" name="blackjackWinPct" min="0" max="100" value="${bjPct}" required />
+            </div>
+          </div>
+
+          <div class="row" style="margin-top:12px;">
+            <div>
+              <label>Dice (Win %)</label>
+              <input type="number" name="diceWinPct" min="0" max="100" value="${dicePct}" required />
+            </div>
+            <div>
+              <label>High-Low (Win %)</label>
+              <input type="number" name="highlowWinPct" min="0" max="100" value="${highlowPct}" required />
+            </div>
+          </div>
+
+          <button class="btn" type="submit" style="margin-top:12px;">Save Overrides</button>
+        </form>
+
+        <h3 style="margin-top:20px;">Existing Overrides</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>User ID</th>
+              <th>Coinflip</th>
+              <th>Slots</th>
+              <th>Roulette</th>
+              <th>Blackjack</th>
+              <th>Dice</th>
+              <th>High-Low</th>
+              <th>Clear</th>
+            </tr>
+          </thead>
+          <tbody>${overrideRows || ""}</tbody>
+        </table>
       </div>
     `, script));
   });
@@ -289,6 +420,69 @@ function startDashboard() {
   app.post("/config/blackjack", mustBeAuthed, (req, res) => {
     const winPct = Math.max(0, Math.min(100, parseInt(req.body.winPct || "45", 10)));
     setConfig("blackjack", { playerWinChance: winPct / 100 });
+    res.redirect("/dashboard");
+  });
+
+  app.post("/config/dice", mustBeAuthed, (req, res) => {
+    const winPct = Math.max(0, Math.min(100, parseInt(req.body.winPct || "18", 10)));
+    setConfig("dice", { playerWinChance: winPct / 100 });
+    res.redirect("/dashboard");
+  });
+
+  app.post("/config/highlow", mustBeAuthed, (req, res) => {
+    const winPct = Math.max(0, Math.min(100, parseInt(req.body.winPct || "50", 10)));
+    setConfig("highlow", { playerWinChance: winPct / 100 });
+    res.redirect("/dashboard");
+  });
+
+  app.post("/user-odds", mustBeAuthed, (req, res) => {
+    const userId = (req.body.user_id || "").trim();
+    if (!userId) return res.status(400).send("Missing user_id");
+
+    const globalCoin = getConfig("coinflip", { headsProb: 0.5 });
+    const globalSlots = getConfig("slots", { winChance: 0.28 });
+    const globalRoul = getConfig("roulette", { playerWinChance: 0.47 });
+    const globalBj = getConfig("blackjack", { playerWinChance: 0.45 });
+    const globalDice = getConfig("dice", { playerWinChance: 0.18 });
+    const globalHighlow = getConfig("highlow", { playerWinChance: 0.5 });
+
+    const headsPct = pctFromConfig(globalCoin.headsProb, 50);
+    const slotsPct = pctFromConfig(globalSlots.winChance, 28);
+    const roulPct = pctFromConfig(globalRoul.playerWinChance, 47);
+    const bjPct = pctFromConfig(globalBj.playerWinChance, 45);
+    const dicePct = pctFromConfig(globalDice.playerWinChance, 18);
+    const highlowPct = pctFromConfig(globalHighlow.playerWinChance, 50);
+
+    const clampPct = (value, fallback) => {
+      const n = parseInt(value || `${fallback}`, 10);
+      return Math.max(0, Math.min(100, n));
+    };
+
+    const coinflipHeadsPct = clampPct(req.body.coinflipHeadsPct, headsPct);
+    const slotsWinPct = clampPct(req.body.slotsWinPct, slotsPct);
+    const rouletteWinPct = clampPct(req.body.rouletteWinPct, roulPct);
+    const blackjackWinPct = clampPct(req.body.blackjackWinPct, bjPct);
+    const diceWinPct = clampPct(req.body.diceWinPct, dicePct);
+    const highlowWinPct = clampPct(req.body.highlowWinPct, highlowPct);
+
+    setUserConfig(userId, "coinflip", { headsProb: coinflipHeadsPct / 100 });
+    setUserConfig(userId, "slots", { winChance: slotsWinPct / 100 });
+    setUserConfig(userId, "roulette", { playerWinChance: rouletteWinPct / 100 });
+    setUserConfig(userId, "blackjack", { playerWinChance: blackjackWinPct / 100 });
+    setUserConfig(userId, "dice", { playerWinChance: diceWinPct / 100 });
+    setUserConfig(userId, "highlow", { playerWinChance: highlowWinPct / 100 });
+
+    res.redirect("/dashboard");
+  });
+
+  app.post("/user-odds/clear", mustBeAuthed, (req, res) => {
+    const userId = (req.body.user_id || "").trim();
+    if (!userId) return res.status(400).send("Missing user_id");
+
+    ["coinflip", "slots", "roulette", "blackjack", "dice", "highlow"].forEach((key) => {
+      clearUserConfig(userId, key);
+    });
+
     res.redirect("/dashboard");
   });
 

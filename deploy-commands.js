@@ -26,6 +26,18 @@ const commands = [
       ))
     .addIntegerOption(o => o.setName("number").setDescription("0-36 (only if type=number)").setRequired(false).setMinValue(0).setMaxValue(36)),
 
+  new SlashCommandBuilder().setName("dice").setDescription("Roll a die and guess the exact number.")
+    .addIntegerOption(o => o.setName("bet").setDescription("Bet amount").setRequired(true).setMinValue(1))
+    .addIntegerOption(o => o.setName("guess").setDescription("Pick a number from 1-6").setRequired(true).setMinValue(1).setMaxValue(6)),
+
+  new SlashCommandBuilder().setName("highlow").setDescription("Guess whether the next card is higher or lower.")
+    .addIntegerOption(o => o.setName("bet").setDescription("Bet amount").setRequired(true).setMinValue(1))
+    .addStringOption(o => o.setName("guess").setDescription("Higher or lower").setRequired(true)
+      .addChoices(
+        { name: "higher", value: "higher" },
+        { name: "lower", value: "lower" },
+      )),
+
   new SlashCommandBuilder().setName("blackjack").setDescription("Play blackjack vs dealer (buttons).")
     .addIntegerOption(o => o.setName("bet").setDescription("Bet amount").setRequired(true).setMinValue(1)),
 
