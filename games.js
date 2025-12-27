@@ -251,13 +251,6 @@ function drawCardBiased(deck, playerWinChance = 0.45, who = "player") {
 // ---- DICE ----
 function rollDiceBiased(guess, playerWinChance = 0.18) {
   const p = Math.max(0, Math.min(1, playerWinChance));
-  if (p === 1) {
-    return { roll: guess, win: true };
-  }
-  if (p === 0) {
-    const miss = guess === 1 ? 2 : 1;
-    return { roll: miss, win: false };
-  }
   let roll = Math.floor(Math.random() * 6) + 1;
   let win = roll === guess;
 

@@ -64,6 +64,7 @@ function htmlPage(title, body, script = "") {
   h1,h2,h3 { margin: 0 0 10px 0; }
   a { color: var(--brand-2); text-decoration:none; }
   table { width:100%; border-collapse: collapse; min-width: 720px; }
+  table { width:100%; border-collapse: collapse; }
   th, td { border-bottom: 1px solid rgba(120, 162, 255, 0.12); padding: 10px; text-align:left; vertical-align: top; }
   tbody tr:hover { background: rgba(124, 77, 255, 0.08); }
   input[type="number"], input[type="text"] {
@@ -78,9 +79,6 @@ function htmlPage(title, body, script = "") {
   input[type="range"] { width: 100%; accent-color: var(--brand); }
   label { display:block; margin: 10px 0 6px; color: var(--muted); font-weight: 500; }
   .row { display:grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-  .row.single { grid-template-columns: 1fr; }
-  .table-wrap { width: 100%; overflow-x: auto; border-radius: 14px; border: 1px solid rgba(120, 162, 255, 0.15); }
-  .table-wrap table { min-width: 780px; }
   .btn {
     background: linear-gradient(135deg, var(--brand), var(--brand-2));
     border: none;
@@ -105,11 +103,6 @@ function htmlPage(title, body, script = "") {
   .help { font-size: 13px; color: var(--muted); margin-top: 6px; }
   .nav { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 12px; }
   .nav a { padding: 8px 12px; border-radius: 999px; background: rgba(124, 77, 255, 0.15); }
-  @media (max-width: 900px) {
-    .wrap { padding: 20px; }
-    .row { grid-template-columns: 1fr; }
-    .nav { flex-direction: column; align-items: flex-start; }
-  }
 </style>
 </head>
 <body>
@@ -368,12 +361,10 @@ function startDashboard() {
 
       <div class="card" id="balances">
         <h2 class="section-title">Balances (Top 200)</h2>
-        <div class="table-wrap">
-          <table>
-            <thead><tr><th>User ID</th><th>Balance</th><th>Edit</th></tr></thead>
-            <tbody>${rows || ""}</tbody>
-          </table>
-        </div>
+        <table>
+          <thead><tr><th>User ID</th><th>Balance</th><th>Edit</th></tr></thead>
+          <tbody>${rows || ""}</tbody>
+        </table>
 
         <div class="row" style="margin-top:16px;">
           <form method="POST" action="/balances/set-any">
@@ -390,8 +381,8 @@ function startDashboard() {
         </div>
       </div>
 
-      <div class="card" id="user-odds">
-        <h2 class="section-title">Per-User Odds Overrides <span class="badge">Personalized</span></h2>
+      <div class="card">
+        <h2>Per-User Odds Overrides</h2>
         <p class="muted">Set custom chances for a specific user. Values are percentages.</p>
 
         <form method="POST" action="/user-odds">
@@ -435,23 +426,21 @@ function startDashboard() {
         </form>
 
         <h3 style="margin-top:20px;">Existing Overrides</h3>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>User ID</th>
-                <th>Coinflip</th>
-                <th>Slots</th>
-                <th>Roulette</th>
-                <th>Blackjack</th>
-                <th>Dice</th>
-                <th>High-Low</th>
-                <th>Clear</th>
-              </tr>
-            </thead>
-            <tbody>${overrideRows || ""}</tbody>
-          </table>
-        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>User ID</th>
+              <th>Coinflip</th>
+              <th>Slots</th>
+              <th>Roulette</th>
+              <th>Blackjack</th>
+              <th>Dice</th>
+              <th>High-Low</th>
+              <th>Clear</th>
+            </tr>
+          </thead>
+          <tbody>${overrideRows || ""}</tbody>
+        </table>
       </div>
     `, script));
   });

@@ -93,13 +93,8 @@ function clearUserConfig(userId, key) {
 function getEffectiveConfig(userId, key, defaultObj) {
   const globalCfg = getConfig(key, defaultObj);
   const userCfg = getUserConfig(userId, key);
-  const merged = { ...defaultObj, ...globalCfg };
-  if (userCfg && typeof userCfg === "object") {
-    Object.entries(userCfg).forEach(([field, value]) => {
-      if (value !== undefined) merged[field] = value;
-    });
-  }
-  return merged;
+  if (!userCfg) return globalCfg;
+  return { ...globalCfg, ...userCfg };
 }
 
 module.exports = {
