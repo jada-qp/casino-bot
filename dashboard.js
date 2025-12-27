@@ -56,93 +56,479 @@ function mustBeAuthed(req, res, next) {
 
 function htmlPage(title, body, script = "") {
   return `<!doctype html>
-<html>
+<html lang="en">
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>${title}</title>
+<title>${title} — Casino Admin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root {
-    --bg: #0a0d1a;
-    --bg-accent: #12162b;
-    --panel: rgba(18, 23, 40, 0.9);
-    --panel-border: rgba(120, 162, 255, 0.2);
-    --text: #e6ebff;
-    --muted: #9aa3c7;
-    --brand: #7c4dff;
-    --brand-2: #33d4ff;
-    --success: #3ef2a6;
+    --bg-primary: #ffffff;
+    --bg-secondary: #f5f5f7;
+    --bg-tertiary: #fbfbfd;
+    --text-primary: #1d1d1f;
+    --text-secondary: #86868b;
+    --text-tertiary: #6e6e73;
+    --accent: #0071e3;
+    --accent-hover: #0077ed;
+    --success: #34c759;
+    --danger: #ff3b30;
+    --warning: #ff9500;
+    --border: rgba(0, 0, 0, 0.08);
+    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.04);
+    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+    --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.12);
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 20px;
+    --radius-xl: 28px;
+    --nav-bg: rgba(255, 255, 255, 0.72);
   }
 
+  /* Dark Mode */
+  .dark-mode {
+    --bg-primary: #1c1c1e;
+    --bg-secondary: #000000;
+    --bg-tertiary: #2c2c2e;
+    --text-primary: #f5f5f7;
+    --text-secondary: #98989d;
+    --text-tertiary: #8e8e93;
+    --border: rgba(255, 255, 255, 0.1);
+    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
+    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+    --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.5);
+    --nav-bg: rgba(28, 28, 30, 0.72);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
   body {
-    font-family: "Space Grotesk", ui-sans-serif, system-ui, -apple-system;
-    background: radial-gradient(circle at top, #1a1f3d 0%, #0a0d1a 50%, #05070f 100%);
-    color: var(--text);
-    margin: 0;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', sans-serif;
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    transition: background-color 0.3s ease, color 0.3s ease;
   }
-  *, *::before, *::after { box-sizing: border-box; }
-  .wrap { max-width: 1150px; margin: 0 auto; padding: 28px; }
-  .card {
-    background: linear-gradient(145deg, rgba(19, 24, 44, 0.95), rgba(12, 16, 30, 0.95));
-    border: 1px solid var(--panel-border);
-    border-radius: 18px;
-    padding: 18px 20px;
-    margin: 18px 0;
-    box-shadow: 0 8px 30px rgba(8, 10, 20, 0.45), inset 0 0 30px rgba(79, 88, 130, 0.12);
-    overflow: hidden;
+
+  /* Navigation Header */
+  .nav-header {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: var(--nav-bg);
+    backdrop-filter: saturate(180%) blur(20px);
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+    border-bottom: 1px solid var(--border);
+    padding: 0 24px;
+    transition: background-color 0.3s ease;
   }
-  .card h2 { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-  h1,h2,h3 { margin: 0 0 10px 0; }
-  a { color: var(--brand-2); text-decoration:none; }
-  .table-wrap { overflow-x: auto; margin: 0 -20px; padding: 0 20px; }
-  table { width: 100%; border-collapse: collapse; min-width: 600px; }
-  th, td { border-bottom: 1px solid rgba(120, 162, 255, 0.12); padding: 10px; text-align:left; vertical-align: top; }
-  tbody tr:hover { background: rgba(124, 77, 255, 0.08); }
-  input[type="number"], input[type="text"] {
-    width: 100%;
-    max-width: 100%;
-    padding: 11px 12px;
-    border-radius: 12px;
-    border: 1px solid rgba(120, 162, 255, 0.22);
-    background: rgba(7, 11, 25, 0.85);
-    color: var(--text);
-    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.02);
+
+  .nav-inner {
+    max-width: 1200px;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 52px;
   }
-  input[type="range"] { width: 100%; accent-color: var(--brand); }
-  label { display:block; margin: 10px 0 6px; color: var(--muted); font-weight: 500; }
-  .row { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
-  .btn {
-    background: linear-gradient(135deg, var(--brand), var(--brand-2));
-    border: none;
-    color: white;
-    padding: 10px 14px;
-    border-radius: 12px;
-    cursor: pointer;
+
+  .nav-brand {
+    font-size: 21px;
     font-weight: 600;
-    box-shadow: 0 8px 20px rgba(124, 77, 255, 0.35);
+    color: var(--text-primary);
+    letter-spacing: -0.02em;
   }
-  .btn:hover { filter: brightness(1.08); }
-  .btn.secondary {
-    background: transparent;
-    border: 1px solid rgba(124, 77, 255, 0.55);
-    color: var(--text);
-    box-shadow: none;
+
+  .nav-links {
+    display: flex;
+    gap: 8px;
   }
-  .btn.danger {
-    background: linear-gradient(135deg, #ff4d6a, #ff7a4d);
-    box-shadow: 0 8px 20px rgba(255, 77, 106, 0.35);
+
+  .nav-links a {
+    padding: 8px 16px;
+    border-radius: 980px;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    text-decoration: none;
+    transition: all 0.2s ease;
   }
-  .muted { color: var(--muted); }
-  .pill { display:inline-block; padding: 4px 10px; border-radius: 999px; background: rgba(124, 77, 255, 0.18); }
-  .section-title { display:flex; align-items:center; gap:10px; }
-  .badge { font-size: 12px; padding: 2px 8px; border-radius: 999px; background: rgba(51, 212, 255, 0.2); color: #b6f3ff; }
-  .help { font-size: 13px; color: var(--muted); margin-top: 6px; }
-  .nav { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 12px; }
-  .nav a { padding: 8px 12px; border-radius: 999px; background: rgba(124, 77, 255, 0.15); }
+
+  .nav-links a:hover {
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+  }
+
+  .nav-user {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    font-size: 14px;
+    color: var(--text-secondary);
+  }
+
+  .nav-user strong { color: var(--text-primary); }
+
+  .nav-user a {
+    color: var(--accent);
+    text-decoration: none;
+    font-weight: 500;
+  }
+
+  /* Main Content */
+  .wrap {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 40px 24px 80px;
+  }
+
+  /* Hero Section */
+  .hero {
+    text-align: center;
+    padding: 60px 0 40px;
+  }
+
+  .hero h1 {
+    font-size: 48px;
+    font-weight: 700;
+    letter-spacing: -0.025em;
+    color: var(--text-primary);
+    margin-bottom: 12px;
+  }
+
+  .hero p {
+    font-size: 21px;
+    color: var(--text-secondary);
+    max-width: 600px;
+    margin: 0 auto;
+  }
+
+  /* Cards */
+  .card {
+    background: var(--bg-primary);
+    border-radius: var(--radius-lg);
+    padding: 32px;
+    margin-bottom: 24px;
+    box-shadow: var(--shadow-md);
+    border: 1px solid var(--border);
+  }
+
+  .card-header {
+    margin-bottom: 24px;
+  }
+
+  .card-header h2 {
+    font-size: 28px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .card-header p {
+    font-size: 15px;
+    color: var(--text-secondary);
+    margin-top: 8px;
+  }
+
+  h3 {
+    font-size: 17px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 12px;
+  }
+
+  /* Badge */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 12px;
+    border-radius: 980px;
+    font-size: 12px;
+    font-weight: 600;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+  }
+
+  /* Grid Layout */
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 20px;
+  }
+
+  .grid-item {
+    background: var(--bg-tertiary);
+    border-radius: var(--radius-md);
+    padding: 24px;
+    border: 1px solid var(--border);
+    transition: all 0.3s ease;
+  }
+
+  .grid-item:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+  }
+
+  /* Form Elements */
+  label {
+    display: block;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    margin-bottom: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+  }
+
+  input[type="text"],
+  input[type="number"] {
+    width: 100%;
+    padding: 12px 16px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    background: var(--bg-primary);
+    font-size: 17px;
+    font-family: inherit;
+    color: var(--text-primary);
+    transition: all 0.2s ease;
+  }
+
+  input[type="text"]:focus,
+  input[type="number"]:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 4px rgba(0, 113, 227, 0.1);
+  }
+
+  input[type="range"] {
+    width: 100%;
+    height: 6px;
+    border-radius: 3px;
+    background: var(--bg-secondary);
+    appearance: none;
+    cursor: pointer;
+  }
+
+  input[type="range"]::-webkit-slider-thumb {
+    appearance: none;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0, 113, 227, 0.3);
+    transition: transform 0.15s ease;
+  }
+
+  input[type="range"]::-webkit-slider-thumb:hover {
+    transform: scale(1.1);
+  }
+
+  /* Buttons */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 12px 24px;
+    border-radius: 980px;
+    font-size: 15px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    border: none;
+    transition: all 0.2s ease;
+    text-decoration: none;
+    gap: 8px;
+  }
+
+  .btn-primary {
+    background: var(--accent);
+    color: white;
+  }
+
+  .btn-primary:hover {
+    background: var(--accent-hover);
+    transform: scale(1.02);
+  }
+
+  .btn-secondary {
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    border: 1px solid var(--border);
+  }
+
+  .btn-secondary:hover {
+    background: var(--bg-tertiary);
+  }
+
+  .btn-danger {
+    background: var(--danger);
+    color: white;
+  }
+
+  .btn-danger:hover {
+    filter: brightness(1.1);
+    transform: scale(1.02);
+  }
+
+  .btn-sm {
+    padding: 8px 16px;
+    font-size: 13px;
+  }
+
+  /* Tables */
+  .table-container {
+    overflow-x: auto;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border);
+    background: var(--bg-primary);
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 600px;
+  }
+
+  th, td {
+    padding: 16px 20px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+  }
+
+  th {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    background: var(--bg-tertiary);
+  }
+
+  td {
+    font-size: 15px;
+    color: var(--text-primary);
+  }
+
+  tbody tr:hover {
+    background: var(--bg-tertiary);
+  }
+
+  tbody tr:last-child td {
+    border-bottom: none;
+  }
+
+  /* Pill/Tag */
+  .pill {
+    display: inline-flex;
+    padding: 6px 12px;
+    border-radius: 980px;
+    font-size: 13px;
+    font-weight: 500;
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
+    font-family: 'SF Mono', Monaco, monospace;
+  }
+
+  /* Value Display */
+  .value-display {
+    font-size: 32px;
+    font-weight: 700;
+    color: var(--accent);
+    letter-spacing: -0.02em;
+  }
+
+  /* Divider */
+  .divider {
+    height: 1px;
+    background: var(--border);
+    margin: 32px 0;
+  }
+
+  /* Note/Help Text */
+  .note {
+    font-size: 13px;
+    color: var(--text-tertiary);
+    margin-top: 8px;
+  }
+
+  /* Login Card Special */
+  .login-card {
+    max-width: 400px;
+    margin: 120px auto;
+    text-align: center;
+  }
+
+  .login-card h1 {
+    font-size: 32px;
+    font-weight: 700;
+    margin-bottom: 12px;
+  }
+
+  .login-card p {
+    color: var(--text-secondary);
+    margin-bottom: 32px;
+  }
+
+  .login-card .btn {
+    width: 100%;
+  }
+
+  /* Responsive */
+  @media (max-width: 768px) {
+    .hero h1 { font-size: 32px; }
+    .hero p { font-size: 17px; }
+    .card { padding: 24px; }
+    .grid { grid-template-columns: 1fr; }
+    .nav-links { display: none; }
+  }
+
+  /* Animation */
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .card { animation: fadeIn 0.4s ease; }
+
+  /* Dark Mode Toggle */
+  .theme-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    border-radius: 980px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    transition: all 0.2s ease;
+  }
+
+  .theme-toggle:hover {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+  }
+
+  .theme-toggle .icon {
+    font-size: 16px;
+  }
 </style>
 </head>
 <body>
-<div class="wrap">${body}</div>
+${body}
 <script>
 ${script}
 </script>
@@ -205,10 +591,12 @@ function startDashboard() {
     const user = consumeAutoLoginToken(token);
     if (!user) {
       return res.send(htmlPage("Login Failed", `
-        <div class="card">
-          <h1>Invalid or Expired Link</h1>
-          <p class="muted">This login link has expired or already been used.</p>
-          <p><a href="/login">→ Login with Discord instead</a></p>
+        <div class="wrap">
+          <div class="card login-card">
+            <h1>Link Expired</h1>
+            <p>This login link has expired or was already used.</p>
+            <a href="/login" class="btn btn-primary">Sign in with Discord</a>
+          </div>
         </div>
       `));
     }
@@ -235,10 +623,12 @@ function startDashboard() {
     auth.searchParams.set("scope", "identify");
 
     res.send(htmlPage("Login", `
-      <div class="card">
-        <h1>Casino Dev Dashboard</h1>
-        <p class="muted">Login with Discord to manage balances and odds.</p>
-        <p><a href="${auth.toString()}">→ Login with Discord</a></p>
+      <div class="wrap">
+        <div class="card login-card">
+          <h1>Casino Admin</h1>
+          <p>Sign in to manage balances, odds, and player overrides.</p>
+          <a href="${auth.toString()}" class="btn btn-primary">Continue with Discord</a>
+        </div>
       </div>
     `));
   });
@@ -284,11 +674,11 @@ function startDashboard() {
     const rows = users.map(u => `
       <tr>
         <td><span class="pill">${u.user_id}</span></td>
-        <td><b>${u.balance}</b></td>
+        <td><strong>${u.balance}</strong></td>
         <td>
-          <form method="POST" action="/balances/${u.user_id}">
-            <input type="number" name="balance" value="${u.balance}" min="0" step="1"/>
-            <button class="btn" type="submit" style="margin-top:8px;">Save</button>
+          <form method="POST" action="/balances/${u.user_id}" style="display:flex;gap:8px;align-items:center;">
+            <input type="number" name="balance" value="${u.balance}" min="0" step="1" style="max-width:120px;"/>
+            <button class="btn btn-primary btn-sm" type="submit">Save</button>
           </form>
         </td>
       </tr>
@@ -324,7 +714,7 @@ function startDashboard() {
           <td>
             <form method="POST" action="/user-odds/clear">
               <input type="hidden" name="user_id" value="${userId}" />
-              <button class="btn" type="submit">Clear</button>
+              <button class="btn btn-danger btn-sm" type="submit">Clear</button>
             </form>
           </td>
         </tr>
@@ -346,177 +736,231 @@ function startDashboard() {
       bindSlider("blackjackWinPct", "blackjackWinLabel");
       bindSlider("diceWinPct", "diceWinLabel");
       bindSlider("highlowWinPct", "highlowWinLabel");
+
+      // Dark Mode Toggle
+      const themeToggle = document.getElementById('themeToggle');
+      const themeIcon = document.getElementById('themeIcon');
+      const themeText = document.getElementById('themeText');
+      
+      function setTheme(dark) {
+        if (dark) {
+          document.body.classList.add('dark-mode');
+          themeIcon.textContent = '☀️';
+          themeText.textContent = 'Light';
+          localStorage.setItem('theme', 'dark');
+        } else {
+          document.body.classList.remove('dark-mode');
+          themeIcon.textContent = '🌙';
+          themeText.textContent = 'Dark';
+          localStorage.setItem('theme', 'light');
+        }
+      }
+      
+      // Initialize theme from localStorage
+      const savedTheme = localStorage.getItem('theme');
+      if (savedTheme === 'dark') {
+        setTheme(true);
+      } else {
+        setTheme(false);
+      }
+      
+      themeToggle.addEventListener('click', () => {
+        const isDark = document.body.classList.contains('dark-mode');
+        setTheme(!isDark);
+      });
     `;
 
     res.send(htmlPage("Dashboard", `
-      <div class="card">
-        <h1 class="section-title">Casino Dev Dashboard <span class="badge">Live Ops</span></h1>
-        <p class="muted">Logged in as <b>${req.session.user.username}</b> • <a href="/logout">Logout</a></p>
-        <div class="nav">
-          <a href="#odds">Odds</a>
-          <a href="#balances">Balances</a>
-          <a href="#user-odds">Per-User Overrides</a>
-        </div>
-      </div>
-
-      <div class="card" id="odds">
-        <h2 class="section-title">Odds & Chances <span class="badge">Global</span></h2>
-        <p class="muted">These affect randomness internally. They are <b>not shown</b> in Discord.</p>
-        <p class="help">Tip: set global defaults here, then override special users below.</p>
-
-        <div class="row">
-          <div>
-            <h3>Coinflip</h3>
-            <form method="POST" action="/config/coinflip">
-              <label>Heads chance: <b id="coinflipHeadsLabel">${headsPct}%</b></label>
-              <input id="coinflipHeadsPct" type="range" name="headsPct" min="0" max="100" value="${headsPct}"/>
-              <button class="btn" type="submit" style="margin-top:10px;">Update</button>
-            </form>
+      <nav class="nav-header">
+        <div class="nav-inner">
+          <div class="nav-brand">Casino Admin</div>
+          <div class="nav-links">
+            <a href="#odds">Odds</a>
+            <a href="#balances">Balances</a>
+            <a href="#overrides">Overrides</a>
           </div>
-
-          <div>
-            <h3>Slots</h3>
-            <form method="POST" action="/config/slots">
-              <label>Win chance: <b id="slotsWinLabel">${slotsPct}%</b></label>
-              <input id="slotsWinPct" type="range" name="winPct" min="0" max="100" value="${slotsPct}"/>
-              <button class="btn" type="submit" style="margin-top:10px;">Update</button>
-            </form>
+          <div class="nav-user">
+            <button class="theme-toggle" id="themeToggle">
+              <span class="icon" id="themeIcon">🌙</span>
+              <span id="themeText">Dark</span>
+            </button>
+            <span>Welcome, <strong>${req.session.user.username}</strong></span>
+            <a href="/logout">Sign Out</a>
           </div>
         </div>
+      </nav>
 
-        <div class="row" style="margin-top:16px;">
-          <div>
-            <h3>Roulette</h3>
-            <form method="POST" action="/config/roulette">
-              <label>Player win bias: <b id="rouletteWinLabel">${roulPct}%</b></label>
-              <input id="rouletteWinPct" type="range" name="winPct" min="0" max="100" value="${roulPct}"/>
-              <button class="btn" type="submit" style="margin-top:10px;">Update</button>
-            </form>
+      <div class="wrap">
+        <section class="hero">
+          <h1>Control Center</h1>
+          <p>Manage game odds, player balances, and individual overrides.</p>
+        </section>
+
+        <div class="card" id="odds">
+          <div class="card-header">
+            <h2>Game Odds <span class="badge">Global</span></h2>
+            <p>Configure win probabilities for each game. Changes apply to all players without individual overrides.</p>
           </div>
 
-          <div>
-            <h3>Blackjack</h3>
-            <form method="POST" action="/config/blackjack">
-              <label>Player win bias: <b id="blackjackWinLabel">${bjPct}%</b></label>
-              <input id="blackjackWinPct" type="range" name="winPct" min="0" max="100" value="${bjPct}"/>
-              <button class="btn" type="submit" style="margin-top:10px;">Update</button>
-            </form>
-          </div>
-        </div>
+          <div class="grid">
+            <div class="grid-item">
+              <h3>🪙 Coinflip</h3>
+              <form method="POST" action="/config/coinflip">
+                <label>Heads Probability</label>
+                <div class="value-display" id="coinflipHeadsLabel">${headsPct}%</div>
+                <input id="coinflipHeadsPct" type="range" name="headsPct" min="0" max="100" value="${headsPct}"/>
+                <button class="btn btn-primary btn-sm" type="submit" style="margin-top:16px;">Update</button>
+              </form>
+            </div>
 
-        <div class="row" style="margin-top:16px;">
-          <div>
-            <h3>Dice</h3>
-            <form method="POST" action="/config/dice">
-              <label>Player win bias: <b id="diceWinLabel">${dicePct}%</b></label>
-              <input id="diceWinPct" type="range" name="winPct" min="0" max="100" value="${dicePct}"/>
-              <button class="btn" type="submit" style="margin-top:10px;">Update</button>
-            </form>
+            <div class="grid-item">
+              <h3>🎰 Slots</h3>
+              <form method="POST" action="/config/slots">
+                <label>Win Chance</label>
+                <div class="value-display" id="slotsWinLabel">${slotsPct}%</div>
+                <input id="slotsWinPct" type="range" name="winPct" min="0" max="100" value="${slotsPct}"/>
+                <button class="btn btn-primary btn-sm" type="submit" style="margin-top:16px;">Update</button>
+              </form>
+            </div>
+
+            <div class="grid-item">
+              <h3>🎡 Roulette</h3>
+              <form method="POST" action="/config/roulette">
+                <label>Player Win Bias</label>
+                <div class="value-display" id="rouletteWinLabel">${roulPct}%</div>
+                <input id="rouletteWinPct" type="range" name="winPct" min="0" max="100" value="${roulPct}"/>
+                <button class="btn btn-primary btn-sm" type="submit" style="margin-top:16px;">Update</button>
+              </form>
+            </div>
+
+            <div class="grid-item">
+              <h3>🃏 Blackjack</h3>
+              <form method="POST" action="/config/blackjack">
+                <label>Player Win Bias</label>
+                <div class="value-display" id="blackjackWinLabel">${bjPct}%</div>
+                <input id="blackjackWinPct" type="range" name="winPct" min="0" max="100" value="${bjPct}"/>
+                <button class="btn btn-primary btn-sm" type="submit" style="margin-top:16px;">Update</button>
+              </form>
+            </div>
+
+            <div class="grid-item">
+              <h3>🎲 Dice</h3>
+              <form method="POST" action="/config/dice">
+                <label>Player Win Bias</label>
+                <div class="value-display" id="diceWinLabel">${dicePct}%</div>
+                <input id="diceWinPct" type="range" name="winPct" min="0" max="100" value="${dicePct}"/>
+                <button class="btn btn-primary btn-sm" type="submit" style="margin-top:16px;">Update</button>
+              </form>
+            </div>
+
+            <div class="grid-item">
+              <h3>📈 High-Low</h3>
+              <form method="POST" action="/config/highlow">
+                <label>Player Win Bias</label>
+                <div class="value-display" id="highlowWinLabel">${highlowPct}%</div>
+                <input id="highlowWinPct" type="range" name="winPct" min="0" max="100" value="${highlowPct}"/>
+                <button class="btn btn-primary btn-sm" type="submit" style="margin-top:16px;">Update</button>
+              </form>
+            </div>
           </div>
 
-          <div>
-            <h3>High-Low</h3>
-            <form method="POST" action="/config/highlow">
-              <label>Player win bias: <b id="highlowWinLabel">${highlowPct}%</b></label>
-              <input id="highlowWinPct" type="range" name="winPct" min="0" max="100" value="${highlowPct}"/>
-              <button class="btn" type="submit" style="margin-top:10px;">Update</button>
-            </form>
-          </div>
-        </div>
-
-        <div style="margin-top: 20px; border-top: 1px solid rgba(120, 162, 255, 0.12); padding-top: 16px;">
+          <div class="divider"></div>
           <form method="POST" action="/config/reset-all" style="display: inline-block;">
-            <button class="btn danger" type="submit">Reset All to Defaults</button>
+            <button class="btn btn-danger btn-sm" type="submit">Reset All to Defaults</button>
           </form>
-          <span class="muted" style="margin-left: 12px;">Resets all global odds to their default values.</span>
-        </div>
-      </div>
-
-      <div class="card" id="balances">
-        <h2 class="section-title">Balances (Top 200)</h2>
-        <div class="table-wrap">
-          <table>
-            <thead><tr><th>User ID</th><th>Balance</th><th>Edit</th></tr></thead>
-            <tbody>${rows || ""}</tbody>
-          </table>
+          <span class="note" style="margin-left: 16px;">Restore all odds to their original values.</span>
         </div>
 
-        <div class="row" style="margin-top:16px;">
-          <form method="POST" action="/balances/set-any">
+        <div class="card" id="balances">
+          <div class="card-header">
+            <h2>Player Balances</h2>
+            <p>View and modify player coin balances. Showing top 200 players.</p>
+          </div>
+
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>User ID</th>
+                  <th>Balance</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>${rows || '<tr><td colspan="3" style="text-align:center;color:var(--text-secondary);">No players yet</td></tr>'}</tbody>
+            </table>
+          </div>
+
+          <div class="divider"></div>
+          <h3>Set Any Balance</h3>
+          <form method="POST" action="/balances/set-any" style="max-width: 400px;">
             <label>User ID</label>
-            <input type="text" name="user_id" placeholder="123..." />
-            <label style="margin-top:10px;">Balance</label>
-            <input type="number" name="balance" min="0" step="1" />
-            <button class="btn" type="submit" style="margin-top:10px;">Set Balance</button>
+            <input type="text" name="user_id" placeholder="Enter Discord user ID" />
+            <label style="margin-top:16px;">Balance</label>
+            <input type="number" name="balance" min="0" step="1" placeholder="0" />
+            <button class="btn btn-primary" type="submit" style="margin-top:20px;">Set Balance</button>
           </form>
-          <div class="muted">
-            <p><b>Security:</b> access is restricted to <code>ADMIN_USER_IDS</code>.</p>
-            <p>If you expose this publicly: add HTTPS, stronger auth, and rate limits.</p>
-          </div>
+          <p class="note" style="margin-top:16px;">Access restricted to admin users only.</p>
         </div>
-      </div>
 
-      <div class="card">
-        <h2>Per-User Odds Overrides</h2>
-        <p class="muted">Set custom chances for a specific user. Values are percentages.</p>
-
-        <form method="POST" action="/user-odds">
-          <label>User ID</label>
-          <input type="text" name="user_id" placeholder="123..." required />
-
-          <div class="row" style="margin-top:12px;">
-            <div>
-              <label>Coinflip (Heads %)</label>
-              <input type="number" name="coinflipHeadsPct" min="0" max="100" value="${headsPct}" required />
-            </div>
-            <div>
-              <label>Slots (Win %)</label>
-              <input type="number" name="slotsWinPct" min="0" max="100" value="${slotsPct}" required />
-            </div>
+        <div class="card" id="overrides">
+          <div class="card-header">
+            <h2>Per-User Overrides</h2>
+            <p>Set custom win rates for specific players. Values override global settings.</p>
           </div>
 
-          <div class="row" style="margin-top:12px;">
-            <div>
-              <label>Roulette (Win %)</label>
-              <input type="number" name="rouletteWinPct" min="0" max="100" value="${roulPct}" required />
+          <form method="POST" action="/user-odds" style="max-width: 100%;">
+            <label>User ID</label>
+            <input type="text" name="user_id" placeholder="Enter Discord user ID" required style="max-width: 400px;" />
+
+            <div class="grid" style="margin-top: 24px;">
+              <div class="grid-item">
+                <label>Coinflip (%)</label>
+                <input type="number" name="coinflipHeadsPct" min="0" max="100" value="${headsPct}" required />
+              </div>
+              <div class="grid-item">
+                <label>Slots (%)</label>
+                <input type="number" name="slotsWinPct" min="0" max="100" value="${slotsPct}" required />
+              </div>
+              <div class="grid-item">
+                <label>Roulette (%)</label>
+                <input type="number" name="rouletteWinPct" min="0" max="100" value="${roulPct}" required />
+              </div>
+              <div class="grid-item">
+                <label>Blackjack (%)</label>
+                <input type="number" name="blackjackWinPct" min="0" max="100" value="${bjPct}" required />
+              </div>
+              <div class="grid-item">
+                <label>Dice (%)</label>
+                <input type="number" name="diceWinPct" min="0" max="100" value="${dicePct}" required />
+              </div>
+              <div class="grid-item">
+                <label>High-Low (%)</label>
+                <input type="number" name="highlowWinPct" min="0" max="100" value="${highlowPct}" required />
+              </div>
             </div>
-            <div>
-              <label>Blackjack (Win %)</label>
-              <input type="number" name="blackjackWinPct" min="0" max="100" value="${bjPct}" required />
-            </div>
+
+            <button class="btn btn-primary" type="submit" style="margin-top:24px;">Save Override</button>
+          </form>
+
+          <div class="divider"></div>
+          <h3>Active Overrides</h3>
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>User ID</th>
+                  <th>Coinflip</th>
+                  <th>Slots</th>
+                  <th>Roulette</th>
+                  <th>Blackjack</th>
+                  <th>Dice</th>
+                  <th>High-Low</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>${overrideRows || '<tr><td colspan="8" style="text-align:center;color:var(--text-secondary);">No overrides set</td></tr>'}</tbody>
+            </table>
           </div>
-
-          <div class="row" style="margin-top:12px;">
-            <div>
-              <label>Dice (Win %)</label>
-              <input type="number" name="diceWinPct" min="0" max="100" value="${dicePct}" required />
-            </div>
-            <div>
-              <label>High-Low (Win %)</label>
-              <input type="number" name="highlowWinPct" min="0" max="100" value="${highlowPct}" required />
-            </div>
-          </div>
-
-          <button class="btn" type="submit" style="margin-top:12px;">Save Overrides</button>
-        </form>
-
-        <h3 style="margin-top:20px;">Existing Overrides</h3>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>User ID</th>
-                <th>Coinflip</th>
-                <th>Slots</th>
-                <th>Roulette</th>
-                <th>Blackjack</th>
-                <th>Dice</th>
-                <th>High-Low</th>
-                <th>Clear</th>
-              </tr>
-            </thead>
-            <tbody>${overrideRows || ""}</tbody>
-          </table>
         </div>
       </div>
     `, script));
