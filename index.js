@@ -11,7 +11,7 @@ const {
 
 const { startDashboard } = require("./dashboard");
 const { THEME, baseEmbed, gameResultEmbed } = require("./embeds");
-const { getUser, addBalance, setLastDaily, getConfig } = require("./db");
+const { getUser, addBalance, setLastDaily, getEffectiveConfig } = require("./db");
 const {
   clampBet,
   coinflip,
@@ -21,6 +21,8 @@ const {
   handValue,
   dealBlackjackHandsBiased,
   drawCardBiased,
+  rollDiceBiased,
+  hiLoRound,
 } = require("./games");
 
 const client = new Client({
@@ -239,7 +241,7 @@ client.on("interactionCreate", async (interaction) => {
         }
 
         // Configurable odds (NOT displayed in Discord)
-        const cfg = getConfig("coinflip", { headsProb: 0.5 });
+        const cfg = getEffectiveConfig(interaction.user.id, "coinflip", { headsProb: 0.5 });
         const r = coinflip(choice, cfg.headsProb);
 
         let color, title, desc, payoutText;
@@ -290,7 +292,7 @@ client.on("interactionCreate", async (interaction) => {
           return interaction.reply({ embeds: [e], ephemeral: true });
         }
 
-        const cfg = getConfig("slots", { winChance: 0.28 }); // NOT displayed
+        const cfg = getEffectiveConfig(interaction.user.id, "slots", { winChance: 0.28 }); // NOT displayed
 
         const spin = slotsSpinWithWinChance(cfg.winChance);
 
@@ -353,7 +355,7 @@ client.on("interactionCreate", async (interaction) => {
           return interaction.reply({ embeds: [e], ephemeral: true });
         }
 
-        const cfg = getConfig("roulette", { playerWinChance: 0.47 }); // NOT displayed
+        const cfg = getEffectiveConfig(interaction.user.id, "roulette", { playerWinChance: 0.47 }); // NOT displayed
 
         // Take bet
         addBalance(interaction.user.id, -bet);
@@ -388,6 +390,124 @@ client.on("interactionCreate", async (interaction) => {
         return interaction.reply({ embeds: [e] });
       }
 
+      // /dice
+      if (cmd === "dice") {
+        const bet = clampBet(interaction.options.getInteger("bet"));
+        const guess = interaction.options.getInteger("guess");
+
+        if (!bet) {
+          const e = baseEmbed(interaction, THEME.warn)
+            .setTitle("Invalid bet")
+            .setDescription("Use a positive whole number.");
+          return interaction.reply({ embeds: [e], ephemeral: true });
+        }
+
+        const u = getUser(interaction.user.id);
+        if (u.balance < bet) {
+          const e = baseEmbed(interaction, THEME.warn)
+            .setTitle("Not enough coins")
+            .setDescription(`You tried to bet **${bet}**, but you only have **${u.balance}**.`);
+          return interaction.reply({ embeds: [e], ephemeral: true });
+        }
+
+        const cfg = getEffectiveConfig(interaction.user.id, "dice", { playerWinChance: 0.18 });
+
+        addBalance(interaction.user.id, -bet);
+
+        const roll = rollDiceBiased(guess, cfg.playerWinChance);
+        const payoutMult = 6;
+
+        let winnings = 0;
+        if (roll.win) {
+          winnings = bet * payoutMult;
+          addBalance(interaction.user.id, winnings);
+        }
+
+        const nu = getUser(interaction.user.id);
+        const net = roll.win ? winnings - bet : -bet;
+
+        const e = gameResultEmbed(interaction, {
+          title: roll.win ? "🎲 Dice — WIN!" : "🎲 Dice — LOSE",
+          description: `You guessed **${guess}**. The die shows **${roll.roll}**.`,
+          color: roll.win ? THEME.success : THEME.danger,
+          bet,
+          outcome: roll.win ? `Exact hit! **x${payoutMult}**` : "Missed",
+          payout: roll.win ? `+${net} (won ${winnings})` : `${net}`,
+          balance: nu.balance,
+        });
+
+        return interaction.reply({ embeds: [e] });
+      }
+
+      // /highlow
+      if (cmd === "highlow") {
+        const bet = clampBet(interaction.options.getInteger("bet"));
+        const guess = interaction.options.getString("guess");
+
+        if (!bet) {
+          const e = baseEmbed(interaction, THEME.warn)
+            .setTitle("Invalid bet")
+            .setDescription("Use a positive whole number.");
+          return interaction.reply({ embeds: [e], ephemeral: true });
+        }
+
+        const u = getUser(interaction.user.id);
+        if (u.balance < bet) {
+          const e = baseEmbed(interaction, THEME.warn)
+            .setTitle("Not enough coins")
+            .setDescription(`You tried to bet **${bet}**, but you only have **${u.balance}**.`);
+          return interaction.reply({ embeds: [e], ephemeral: true });
+        }
+
+        const cfg = getEffectiveConfig(interaction.user.id, "highlow", { playerWinChance: 0.5 });
+
+        addBalance(interaction.user.id, -bet);
+
+        const round = hiLoRound(guess, cfg.playerWinChance);
+        let winnings = 0;
+        let title = "🃏 High-Low — LOSE";
+        let color = THEME.danger;
+        let payoutText = `-${bet}`;
+        let outcomeText = "Wrong call";
+
+        if (round.push) {
+          winnings = bet;
+          addBalance(interaction.user.id, winnings);
+          title = "🃏 High-Low — PUSH";
+          color = THEME.info;
+          payoutText = "0 (push)";
+          outcomeText = "Tie";
+        } else if (round.win) {
+          winnings = bet * 2;
+          addBalance(interaction.user.id, winnings);
+          title = "🃏 High-Low — WIN!";
+          color = THEME.success;
+          payoutText = `+${bet} (won ${winnings})`;
+          outcomeText = "Correct call";
+        }
+
+        const nu = getUser(interaction.user.id);
+        const rank = (v) => {
+          if (v === 14) return "A";
+          if (v === 13) return "K";
+          if (v === 12) return "Q";
+          if (v === 11) return "J";
+          return v.toString();
+        };
+
+        const e = gameResultEmbed(interaction, {
+          title,
+          description: `Base card: **${rank(round.base)}** → Next card: **${rank(round.next)}**`,
+          color,
+          bet,
+          outcome: outcomeText,
+          payout: payoutText,
+          balance: nu.balance,
+        });
+
+        return interaction.reply({ embeds: [e] });
+      }
+
       // /blackjack
       if (cmd === "blackjack") {
         const bet = clampBet(interaction.options.getInteger("bet"));
@@ -409,7 +529,7 @@ client.on("interactionCreate", async (interaction) => {
         // Deduct bet upfront
         addBalance(interaction.user.id, -bet);
 
-        const cfg = getConfig("blackjack", { playerWinChance: 0.45 }); // NOT displayed
+        const cfg = getEffectiveConfig(interaction.user.id, "blackjack", { playerWinChance: 0.45 }); // NOT displayed
 
         let deck = newDeck();
         const dealt = dealBlackjackHandsBiased(deck, cfg.playerWinChance);
