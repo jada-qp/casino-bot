@@ -19,6 +19,35 @@ const ADMIN_USER_IDS = new Set(
     .filter(Boolean)
 );
 
+// Token store for auto-login from Discord bot
+// Map<token, { userId, username, expiresAt }>
+const autoLoginTokens = new Map();
+
+// Generate a random token
+function generateToken() {
+  return require("crypto").randomBytes(32).toString("hex");
+}
+
+// Create an auto-login token for a user (expires in 5 minutes)
+function createAutoLoginToken(userId, username) {
+  const token = generateToken();
+  const expiresAt = Date.now() + 5 * 60 * 1000; // 5 minutes
+  autoLoginTokens.set(token, { userId, username, expiresAt });
+  return token;
+}
+
+// Validate and consume an auto-login token
+function consumeAutoLoginToken(token) {
+  const data = autoLoginTokens.get(token);
+  if (!data) return null;
+
+  autoLoginTokens.delete(token); // Single-use
+
+  if (Date.now() > data.expiresAt) return null; // Expired
+
+  return { id: data.userId, username: data.username };
+}
+
 function mustBeAuthed(req, res, next) {
   if (!req.session.user) return res.redirect("/login");
   if (!ADMIN_USER_IDS.has(req.session.user.id)) return res.status(403).send("Forbidden (not admin).");
@@ -51,6 +80,7 @@ function htmlPage(title, body, script = "") {
     color: var(--text);
     margin: 0;
   }
+  *, *::before, *::after { box-sizing: border-box; }
   .wrap { max-width: 1150px; margin: 0 auto; padding: 28px; }
   .card {
     background: linear-gradient(145deg, rgba(19, 24, 44, 0.95), rgba(12, 16, 30, 0.95));
@@ -59,16 +89,18 @@ function htmlPage(title, body, script = "") {
     padding: 18px 20px;
     margin: 18px 0;
     box-shadow: 0 8px 30px rgba(8, 10, 20, 0.45), inset 0 0 30px rgba(79, 88, 130, 0.12);
+    overflow: hidden;
   }
-  .card h2 { display: flex; align-items: center; gap: 10px; }
+  .card h2 { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
   h1,h2,h3 { margin: 0 0 10px 0; }
   a { color: var(--brand-2); text-decoration:none; }
-  table { width:100%; border-collapse: collapse; min-width: 720px; }
-  table { width:100%; border-collapse: collapse; }
+  .table-wrap { overflow-x: auto; margin: 0 -20px; padding: 0 20px; }
+  table { width: 100%; border-collapse: collapse; min-width: 600px; }
   th, td { border-bottom: 1px solid rgba(120, 162, 255, 0.12); padding: 10px; text-align:left; vertical-align: top; }
   tbody tr:hover { background: rgba(124, 77, 255, 0.08); }
   input[type="number"], input[type="text"] {
     width: 100%;
+    max-width: 100%;
     padding: 11px 12px;
     border-radius: 12px;
     border: 1px solid rgba(120, 162, 255, 0.22);
@@ -78,7 +110,7 @@ function htmlPage(title, body, script = "") {
   }
   input[type="range"] { width: 100%; accent-color: var(--brand); }
   label { display:block; margin: 10px 0 6px; color: var(--muted); font-weight: 500; }
-  .row { display:grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .row { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
   .btn {
     background: linear-gradient(135deg, var(--brand), var(--brand-2));
     border: none;
@@ -95,6 +127,10 @@ function htmlPage(title, body, script = "") {
     border: 1px solid rgba(124, 77, 255, 0.55);
     color: var(--text);
     box-shadow: none;
+  }
+  .btn.danger {
+    background: linear-gradient(135deg, #ff4d6a, #ff7a4d);
+    box-shadow: 0 8px 20px rgba(255, 77, 106, 0.35);
   }
   .muted { color: var(--muted); }
   .pill { display:inline-block; padding: 4px 10px; border-radius: 999px; background: rgba(124, 77, 255, 0.18); }
@@ -161,7 +197,37 @@ function startDashboard() {
 
   app.get("/", (req, res) => res.redirect("/dashboard"));
 
+  // Auto-login via token from Discord bot
+  app.get("/auth/token", (req, res) => {
+    const token = req.query.token;
+    if (!token) return res.redirect("/login");
+
+    const user = consumeAutoLoginToken(token);
+    if (!user) {
+      return res.send(htmlPage("Login Failed", `
+        <div class="card">
+          <h1>Invalid or Expired Link</h1>
+          <p class="muted">This login link has expired or already been used.</p>
+          <p><a href="/login">→ Login with Discord instead</a></p>
+        </div>
+      `));
+    }
+
+    // Check if user is an admin
+    if (!ADMIN_USER_IDS.has(user.id)) {
+      return res.status(403).send("Forbidden (not admin).");
+    }
+
+    req.session.user = user;
+    res.redirect("/dashboard");
+  });
+
   app.get("/login", (req, res) => {
+    // If already logged in, redirect to dashboard
+    if (req.session.user && ADMIN_USER_IDS.has(req.session.user.id)) {
+      return res.redirect("/dashboard");
+    }
+
     const auth = new URL("https://discord.com/api/oauth2/authorize");
     auth.searchParams.set("client_id", CLIENT_ID);
     auth.searchParams.set("redirect_uri", REDIRECT_URI);
@@ -357,14 +423,23 @@ function startDashboard() {
             </form>
           </div>
         </div>
+
+        <div style="margin-top: 20px; border-top: 1px solid rgba(120, 162, 255, 0.12); padding-top: 16px;">
+          <form method="POST" action="/config/reset-all" style="display: inline-block;">
+            <button class="btn danger" type="submit">Reset All to Defaults</button>
+          </form>
+          <span class="muted" style="margin-left: 12px;">Resets all global odds to their default values.</span>
+        </div>
       </div>
 
       <div class="card" id="balances">
         <h2 class="section-title">Balances (Top 200)</h2>
-        <table>
-          <thead><tr><th>User ID</th><th>Balance</th><th>Edit</th></tr></thead>
-          <tbody>${rows || ""}</tbody>
-        </table>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>User ID</th><th>Balance</th><th>Edit</th></tr></thead>
+            <tbody>${rows || ""}</tbody>
+          </table>
+        </div>
 
         <div class="row" style="margin-top:16px;">
           <form method="POST" action="/balances/set-any">
@@ -426,21 +501,23 @@ function startDashboard() {
         </form>
 
         <h3 style="margin-top:20px;">Existing Overrides</h3>
-        <table>
-          <thead>
-            <tr>
-              <th>User ID</th>
-              <th>Coinflip</th>
-              <th>Slots</th>
-              <th>Roulette</th>
-              <th>Blackjack</th>
-              <th>Dice</th>
-              <th>High-Low</th>
-              <th>Clear</th>
-            </tr>
-          </thead>
-          <tbody>${overrideRows || ""}</tbody>
-        </table>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>User ID</th>
+                <th>Coinflip</th>
+                <th>Slots</th>
+                <th>Roulette</th>
+                <th>Blackjack</th>
+                <th>Dice</th>
+                <th>High-Low</th>
+                <th>Clear</th>
+              </tr>
+            </thead>
+            <tbody>${overrideRows || ""}</tbody>
+          </table>
+        </div>
       </div>
     `, script));
   });
@@ -493,6 +570,17 @@ function startDashboard() {
   app.post("/config/highlow", mustBeAuthed, (req, res) => {
     const winPct = Math.max(0, Math.min(100, parseInt(req.body.winPct || "50", 10)));
     setConfig("highlow", { playerWinChance: winPct / 100 });
+    res.redirect("/dashboard");
+  });
+
+  app.post("/config/reset-all", mustBeAuthed, (req, res) => {
+    // Reset all global odds to their default values
+    setConfig("coinflip", { headsProb: 0.5 });
+    setConfig("slots", { winChance: 0.28 });
+    setConfig("roulette", { playerWinChance: 0.47 });
+    setConfig("blackjack", { playerWinChance: 0.45 });
+    setConfig("dice", { playerWinChance: 0.18 });
+    setConfig("highlow", { playerWinChance: 0.5 });
     res.redirect("/dashboard");
   });
 
@@ -553,4 +641,4 @@ function startDashboard() {
   });
 }
 
-module.exports = { startDashboard };
+module.exports = { startDashboard, createAutoLoginToken };

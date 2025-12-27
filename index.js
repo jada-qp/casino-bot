@@ -1,5 +1,8 @@
 require("dotenv").config();
 
+const fs = require("fs");
+const path = require("path");
+
 const {
   Client,
   GatewayIntentBits,
@@ -9,7 +12,7 @@ const {
   PermissionFlagsBits,
 } = require("discord.js");
 
-const { startDashboard } = require("./dashboard");
+const { startDashboard, createAutoLoginToken } = require("./dashboard");
 const { THEME, baseEmbed, gameResultEmbed } = require("./embeds");
 const { getUser, addBalance, setLastDaily, getEffectiveConfig } = require("./db");
 const {
@@ -32,7 +35,20 @@ const client = new Client({
 const DAILY_AMOUNT = parseInt(process.env.DAILY_AMOUNT || "500", 10);
 const DAILY_COOLDOWN_MS = 24 * 60 * 60 * 1000;
 
+const ADMIN_USER_IDS = new Set(
+  (process.env.ADMIN_USER_IDS || "")
+    .split(",")
+    .map(s => s.trim())
+    .filter(Boolean)
+);
+
+const DASHBOARD_HOST = process.env.DASHBOARD_HOST || "127.0.0.1";
+const DASHBOARD_PORT = parseInt(process.env.DASHBOARD_PORT || "3000", 10);
+
 const bjSessions = new Map(); // key: `${guildId}:${userId}` => session
+
+// In-memory log buffer
+const logBuffer = [];
 
 function sessionKey(i) {
   return `${i.guildId}:${i.user.id}`;
@@ -61,7 +77,58 @@ client.once("ready", () => {
   }
 });
 
+// Logging helper for interactions
+function logInteraction(interaction) {
+  const timestamp = new Date().toISOString();
+  const userId = interaction.user?.id || "unknown";
+  const username = interaction.user?.tag || interaction.user?.username || "unknown";
+  const guildId = interaction.guildId || "DM";
+  const channelId = interaction.channelId || "unknown";
+
+  let type = "unknown";
+  let details = "";
+
+  if (interaction.isChatInputCommand()) {
+    type = "SlashCommand";
+    const options = interaction.options.data.map(opt => `${opt.name}=${opt.value}`).join(", ");
+    details = `/${interaction.commandName}${options ? ` [${options}]` : ""}`;
+  } else if (interaction.isButton()) {
+    type = "Button";
+    details = `customId=${interaction.customId}`;
+  } else if (interaction.isStringSelectMenu()) {
+    type = "SelectMenu";
+    details = `customId=${interaction.customId}, values=${interaction.values.join(",")}`;
+  } else if (interaction.isModalSubmit()) {
+    type = "ModalSubmit";
+    details = `customId=${interaction.customId}`;
+  }
+
+  const logLine = `[${timestamp}] [${type}] User: ${username} (${userId}) | Guild: ${guildId} | Channel: ${channelId} | ${details}`;
+  console.log(logLine);
+  logBuffer.push(logLine);
+}
+
+// Save logs to file
+function saveLogsToFile() {
+  if (logBuffer.length === 0) {
+    console.log("No logs to save.");
+    return;
+  }
+
+  const logFilePath = path.join(__dirname, "latest_log.txt");
+
+  try {
+    fs.writeFileSync(logFilePath, logBuffer.join("\n"), "utf8");
+    console.log(`📝 Logs saved to ${logFilePath} (${logBuffer.length} entries)`);
+  } catch (err) {
+    console.error("Failed to save logs:", err);
+  }
+}
+
 client.on("interactionCreate", async (interaction) => {
+  // Log every interaction
+  logInteraction(interaction);
+
   try {
     // -------------------------
     // SLASH COMMANDS
@@ -203,7 +270,7 @@ client.on("interactionCreate", async (interaction) => {
         // Re-apply overwrites (clone usually keeps them, but this ensures consistency)
         try {
           await cloned.permissionOverwrites.set(overwrites);
-        } catch {}
+        } catch { }
 
         await cloned.send({
           embeds: [
@@ -218,6 +285,27 @@ client.on("interactionCreate", async (interaction) => {
         // Delete old channel last
         await channel.delete(`Channel nuked by ${interaction.user.tag}`);
         return;
+      }
+
+      // /dashboard
+      if (cmd === "dashboard") {
+        // Only allow admins
+        if (!ADMIN_USER_IDS.has(interaction.user.id)) {
+          const e = baseEmbed(interaction, THEME.warn)
+            .setTitle("Access Denied")
+            .setDescription("You do not have permission to access the dashboard.");
+          return interaction.reply({ embeds: [e], ephemeral: true });
+        }
+
+        // Generate auto-login token
+        const token = createAutoLoginToken(interaction.user.id, interaction.user.username);
+        const dashboardUrl = `http://${DASHBOARD_HOST}:${DASHBOARD_PORT}/auth/token?token=${token}`;
+
+        const e = baseEmbed(interaction, THEME.info)
+          .setTitle("🛠️ Admin Dashboard")
+          .setDescription(`Access the admin dashboard to manage odds and balances.\n\n**[Click here to open Dashboard](${dashboardUrl})**\n\n*This link expires in 5 minutes and can only be used once.*`);
+
+        return interaction.reply({ embeds: [e], ephemeral: true });
       }
 
       // /coinflip
@@ -677,9 +765,31 @@ client.on("interactionCreate", async (interaction) => {
           .setTitle("Something went wrong")
           .setDescription("Check the console for details.");
         await interaction.reply({ embeds: [errEmbed], ephemeral: true });
-      } catch {}
+      } catch { }
     }
   }
 });
 
 client.login(process.env.DISCORD_TOKEN);
+
+// Shutdown handlers - save logs before exiting
+function handleShutdown(signal) {
+  console.log(`\n${signal} received. Saving logs and shutting down...`);
+  saveLogsToFile();
+  client.destroy();
+  process.exit(0);
+}
+
+process.on("SIGINT", () => handleShutdown("SIGINT"));
+process.on("SIGTERM", () => handleShutdown("SIGTERM"));
+
+// Also handle uncaught exceptions
+process.on("uncaughtException", (err) => {
+  console.error("Uncaught Exception:", err);
+  saveLogsToFile();
+  process.exit(1);
+});
+
+process.on("unhandledRejection", (reason, promise) => {
+  console.error("Unhandled Rejection at:", promise, "reason:", reason);
+});

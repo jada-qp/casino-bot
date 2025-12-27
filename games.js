@@ -6,7 +6,15 @@ function clampBet(bet) {
 
 function coinflip(choice, headsProb = 0.5) {
   const p = Math.max(0, Math.min(1, headsProb));
-  const flip = Math.random() < p ? "heads" : "tails";
+  // Guarantee results at 0% or 100%
+  let flip;
+  if (p >= 1) {
+    flip = choice; // 100% = always win
+  } else if (p <= 0) {
+    flip = choice === "heads" ? "tails" : "heads"; // 0% = always lose
+  } else {
+    flip = Math.random() < p ? "heads" : "tails";
+  }
   return { flip, win: flip === choice };
 }
 
@@ -39,7 +47,18 @@ function slotsSpinWithWinChance(winChance = 0.28) {
   const p = Math.max(0, Math.min(1, winChance));
 
   let line;
-  if (Math.random() < p) {
+  let forceWin = p >= 1 || Math.random() < p;
+  let forceLose = p <= 0;
+
+  if (forceLose) {
+    // Force a losing spin - all different symbols
+    const syms = SLOT_SYMBOLS.map(x => x.s);
+    line = [
+      syms[0],
+      syms[1],
+      syms[2],
+    ];
+  } else if (forceWin) {
     // force a pair or triple
     const sym = weightedPick(SLOT_SYMBOLS).s;
     const makeTriple = Math.random() < 0.25; // within forced wins, 25% are triples
@@ -80,7 +99,7 @@ function slotsSpinWithWinChance(winChance = 0.28) {
 // ---- ROULETTE ----
 function rouletteRoll() {
   const n = Math.floor(Math.random() * 37);
-  const red = new Set([1,3,5,7,9,12,14,16,18,19,21,23,25,27,30,32,34,36]);
+  const red = new Set([1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36]);
   const color = n === 0 ? "green" : (red.has(n) ? "red" : "black");
   const parity = (n === 0) ? null : (n % 2 === 0 ? "even" : "odd");
   return { n, color, parity };
@@ -108,10 +127,43 @@ function rouletteRollBiased(bet, playerWinChance = 0.47) {
   const p = Math.max(0, Math.min(1, playerWinChance));
   const payoutMult = roulettePayoutMult(bet.type);
 
+  // Guarantee win at 100%, guarantee loss at 0%
+  if (p >= 1) {
+    // Force a winning roll
+    let roll = rouletteRoll();
+    for (let i = 0; i < 100 && !rouletteIsWin(roll, bet); i++) {
+      roll = rouletteRoll();
+    }
+    // If still not winning (extremely rare), force the result
+    if (!rouletteIsWin(roll, bet)) {
+      if (bet.type === "number") {
+        roll = { n: bet.number, color: bet.number === 0 ? "green" : (new Set([1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36]).has(bet.number) ? "red" : "black"), parity: bet.number === 0 ? null : (bet.number % 2 === 0 ? "even" : "odd") };
+      } else if (bet.type === "red") {
+        roll = { n: 1, color: "red", parity: "odd" };
+      } else if (bet.type === "black") {
+        roll = { n: 2, color: "black", parity: "even" };
+      } else if (bet.type === "even") {
+        roll = { n: 2, color: "black", parity: "even" };
+      } else if (bet.type === "odd") {
+        roll = { n: 1, color: "red", parity: "odd" };
+      }
+    }
+    return { ...roll, win: true, payoutMult };
+  }
+
+  if (p <= 0) {
+    // Force a losing roll
+    let roll = rouletteRoll();
+    for (let i = 0; i < 100 && rouletteIsWin(roll, bet); i++) {
+      roll = rouletteRoll();
+    }
+    return { ...roll, win: false, payoutMult };
+  }
+
+  // Normal biased behavior
   let roll = rouletteRoll();
   let win = rouletteIsWin(roll, bet);
 
-  // Try a handful of rerolls to approach desired win rate.
   for (let i = 0; i < 6; i++) {
     const wantWin = Math.random() < p;
     if (win === wantWin) break;
@@ -131,7 +183,7 @@ function handValue(cards) {
 
   for (const r of ranks) {
     if (r === "A") { aces++; total += 11; }
-    else if (["K","Q","J"].includes(r)) total += 10;
+    else if (["K", "Q", "J"].includes(r)) total += 10;
     else total += parseInt(r, 10);
   }
   while (total > 21 && aces > 0) { total -= 10; aces--; }
@@ -139,8 +191,8 @@ function handValue(cards) {
 }
 
 function newDeck() {
-  const suits = ["♠","♥","♦","♣"];
-  const ranks = ["A","2","3","4","5","6","7","8","9","10","J","Q","K"];
+  const suits = ["♠", "♥", "♦", "♣"];
+  const ranks = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"];
   const deck = [];
   for (const s of suits) for (const r of ranks) deck.push(`${r}${s}`);
   for (let i = deck.length - 1; i > 0; i--) {
@@ -157,7 +209,7 @@ function cardRank(card) {
 function cardValueForPick(card) {
   const r = cardRank(card);
   if (r === "A") return 11;
-  if (["K","Q","J"].includes(r)) return 10;
+  if (["K", "Q", "J"].includes(r)) return 10;
   return parseInt(r, 10);
 }
 
@@ -169,14 +221,14 @@ function takeCardByPredicate(deck, predicate) {
 
 function drawHighCard(deck) {
   return (
-    takeCardByPredicate(deck, c => ["A","K","Q","J","10"].includes(cardRank(c))) ||
+    takeCardByPredicate(deck, c => ["A", "K", "Q", "J", "10"].includes(cardRank(c))) ||
     deck.pop()
   );
 }
 
 function drawLowCard(deck) {
   return (
-    takeCardByPredicate(deck, c => ["2","3","4","5","6"].includes(cardRank(c))) ||
+    takeCardByPredicate(deck, c => ["2", "3", "4", "5", "6"].includes(cardRank(c))) ||
     deck.pop()
   );
 }
@@ -251,6 +303,23 @@ function drawCardBiased(deck, playerWinChance = 0.45, who = "player") {
 // ---- DICE ----
 function rollDiceBiased(guess, playerWinChance = 0.18) {
   const p = Math.max(0, Math.min(1, playerWinChance));
+
+  // Guarantee win at 100%
+  if (p >= 1) {
+    return { roll: guess, win: true };
+  }
+
+  // Guarantee loss at 0%
+  if (p <= 0) {
+    // Pick any number except the guess
+    let roll = guess;
+    while (roll === guess) {
+      roll = Math.floor(Math.random() * 6) + 1;
+    }
+    return { roll, win: false };
+  }
+
+  // Normal biased behavior
   let roll = Math.floor(Math.random() * 6) + 1;
   let win = roll === guess;
 
@@ -271,6 +340,34 @@ function randomRank(min, max) {
 
 function hiLoRound(guess, playerWinChance = 0.5) {
   const p = Math.max(0, Math.min(1, playerWinChance));
+
+  // At 100%, guarantee a win (pick base that has room for win, then pick winning next)
+  if (p >= 1) {
+    let base, next;
+    if (guess === "higher") {
+      base = randomRank(2, 13); // Leave room for a higher card
+      next = randomRank(base + 1, 14);
+    } else {
+      base = randomRank(3, 14); // Leave room for a lower card
+      next = randomRank(2, base - 1);
+    }
+    return { base, next, win: true, push: false };
+  }
+
+  // At 0%, guarantee a loss
+  if (p <= 0) {
+    let base, next;
+    if (guess === "higher") {
+      base = randomRank(3, 14); // Leave room for a lower card
+      next = randomRank(2, base - 1);
+    } else {
+      base = randomRank(2, 13); // Leave room for a higher card
+      next = randomRank(base + 1, 14);
+    }
+    return { base, next, win: false, push: false };
+  }
+
+  // Normal behavior
   const base = randomRank(2, 14);
 
   const higherPool = [];

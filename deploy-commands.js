@@ -45,6 +45,8 @@ const commands = [
     .addIntegerOption(o => o.setName("amount").setDescription("How many messages to delete").setRequired(true).setMinValue(1).setMaxValue(100)),
 
   new SlashCommandBuilder().setName("nuke").setDescription("Clone + delete this channel to wipe all messages."),
+
+  new SlashCommandBuilder().setName("dashboard").setDescription("Get the admin dashboard link (admin only)."),
 ].map(c => c.toJSON());
 
 const rest = new REST({ version: "10" }).setToken(process.env.DISCORD_TOKEN);
