@@ -63,6 +63,7 @@ function htmlPage(title, body, script = "") {
   .card h2 { display: flex; align-items: center; gap: 10px; }
   h1,h2,h3 { margin: 0 0 10px 0; }
   a { color: var(--brand-2); text-decoration:none; }
+  table { width:100%; border-collapse: collapse; min-width: 720px; }
   table { width:100%; border-collapse: collapse; }
   th, td { border-bottom: 1px solid rgba(120, 162, 255, 0.12); padding: 10px; text-align:left; vertical-align: top; }
   tbody tr:hover { background: rgba(124, 77, 255, 0.08); }
